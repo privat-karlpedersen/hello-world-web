@@ -2,10 +2,82 @@
 <html lang="no">
 <head>
   <meta charset="UTF-8">
-  <title>Hello World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nedtelling til pensjonsalder</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 3rem 1.5rem;
+      text-align: center;
+      background: #f4f7f5;
+      color: #18322a;
+    }
+
+    h1 {
+      margin-bottom: 1rem;
+    }
+
+    #countdown {
+      font-size: clamp(1.4rem, 4vw, 2.4rem);
+      font-weight: bold;
+      line-height: 1.4;
+    }
+  </style>
 </head>
 <body>
-  <h1>Hello World</h1>
-  <p>Dette kjører på Azure, deployet fra GitHub.</p>
+  <h1>Nedtelling til pensjonsalder</h1>
+  <p id="countdown" aria-live="polite"></p>
+
+  <script>
+    const retirementDate = new Date(2037, 6, 17, 0, 0, 0);
+    const countdown = document.getElementById('countdown');
+    let timer;
+
+    function updateCountdown() {
+      const now = new Date();
+
+      if (now >= retirementDate) {
+        countdown.textContent = 'Gratulerer, du er pensjonist!';
+        clearInterval(timer);
+        return;
+      }
+
+      let years = 0;
+      let cursor = new Date(now);
+      while (true) {
+        const nextYear = new Date(cursor);
+        nextYear.setFullYear(nextYear.getFullYear() + 1);
+        if (nextYear > retirementDate) {
+          break;
+        }
+        cursor = nextYear;
+        years++;
+      }
+
+      let months = 0;
+      while (true) {
+        const nextMonth = new Date(cursor);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        if (nextMonth > retirementDate) {
+          break;
+        }
+        cursor = nextMonth;
+        months++;
+      }
+
+      const remainingMilliseconds = retirementDate - cursor;
+      const days = Math.floor(remainingMilliseconds / 86400000);
+      const hours = Math.floor((remainingMilliseconds % 86400000) / 3600000);
+      const minutes = Math.floor((remainingMilliseconds % 3600000) / 60000);
+      const seconds = Math.floor((remainingMilliseconds % 60000) / 1000);
+
+      countdown.textContent = `Det er ${years} år, ${months} måneder, ${days} dager, ${hours} timer, ${minutes} minutter og ${seconds} sekunder igjen til du er pensjonist.`;
+    }
+
+    updateCountdown();
+    timer = setInterval(updateCountdown, 1000);
+  </script>
 </body>
 </html>
