@@ -5,39 +5,140 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nedtelling til pensjonsalder</title>
   <style>
+    :root {
+      --bg: #0b1120;
+      --bg-glow: #1e3a5f;
+      --card: rgba(255, 255, 255, 0.05);
+      --card-border: rgba(255, 255, 255, 0.12);
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+    }
+
+    * { box-sizing: border-box; }
+
     body {
-      font-family: Arial, sans-serif;
-      max-width: 700px;
-      margin: 0 auto;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2.5rem;
       padding: 3rem 1.5rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       text-align: center;
-      background: #f4f7f5;
-      color: #18322a;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 0%, var(--bg-glow) 0%, transparent 45%),
+        radial-gradient(circle at 85% 100%, #3b2f5f 0%, transparent 45%),
+        var(--bg);
     }
 
-    h1 {
-      margin-bottom: 1rem;
+    header p {
+      margin: 0 0 0.5rem;
+      font-size: 0.8rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--muted);
     }
 
-    #countdown {
-      font-size: clamp(1.4rem, 4vw, 2.4rem);
-      font-weight: bold;
-      line-height: 1.4;
+    header h1 {
+      margin: 0;
+      font-size: clamp(1.4rem, 4vw, 2.2rem);
+      font-weight: 600;
+    }
+
+    header h1 span { color: var(--accent); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(88px, 140px));
+      gap: 1rem;
+    }
+
+    @media (min-width: 720px) {
+      .grid { grid-template-columns: repeat(6, minmax(88px, 130px)); }
+    }
+
+    .unit {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.25rem 0.5rem 1rem;
+      backdrop-filter: blur(6px);
+    }
+
+    .unit .value {
+      font-size: clamp(1.8rem, 6vw, 3rem);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .unit .label {
+      margin-top: 0.5rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    #done {
+      font-size: clamp(1.4rem, 5vw, 2.4rem);
+      font-weight: 700;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
     }
   </style>
 </head>
 <body>
-  <p id="countdown" aria-live="polite"></p>
+  <header>
+    <p>Nedtelling til pensjon</p>
+    <h1><span>Karl</span> blir pensjonist</h1>
+  </header>
+
+  <div class="grid" id="grid">
+    <div class="unit"><div class="value" id="years">–</div><div class="label">År</div></div>
+    <div class="unit"><div class="value" id="months">–</div><div class="label">Måneder</div></div>
+    <div class="unit"><div class="value" id="days">–</div><div class="label">Dager</div></div>
+    <div class="unit"><div class="value" id="hours">–</div><div class="label">Timer</div></div>
+    <div class="unit"><div class="value" id="minutes">–</div><div class="label">Minutter</div></div>
+    <div class="unit"><div class="value" id="seconds">–</div><div class="label">Sekunder</div></div>
+  </div>
+
+  <p id="done" hidden>Gratulerer, du er pensjonist!</p>
+  <p class="sr-only" id="countdown" aria-live="polite"></p>
 
   <script>
     const retirementDate = new Date(2037, 6, 17, 0, 0, 0);
+    const grid = document.getElementById('grid');
+    const done = document.getElementById('done');
     const countdown = document.getElementById('countdown');
+    const fields = {
+      years: document.getElementById('years'),
+      months: document.getElementById('months'),
+      days: document.getElementById('days'),
+      hours: document.getElementById('hours'),
+      minutes: document.getElementById('minutes'),
+      seconds: document.getElementById('seconds'),
+    };
     let timer;
 
     function updateCountdown() {
       const now = new Date();
 
       if (now >= retirementDate) {
+        grid.hidden = true;
+        done.hidden = false;
         countdown.textContent = 'Gratulerer, du er pensjonist!';
         clearInterval(timer);
         return;
@@ -48,9 +149,7 @@
       while (true) {
         const nextYear = new Date(cursor);
         nextYear.setFullYear(nextYear.getFullYear() + 1);
-        if (nextYear > retirementDate) {
-          break;
-        }
+        if (nextYear > retirementDate) break;
         cursor = nextYear;
         years++;
       }
@@ -59,9 +158,7 @@
       while (true) {
         const nextMonth = new Date(cursor);
         nextMonth.setMonth(nextMonth.getMonth() + 1);
-        if (nextMonth > retirementDate) {
-          break;
-        }
+        if (nextMonth > retirementDate) break;
         cursor = nextMonth;
         months++;
       }
@@ -71,6 +168,13 @@
       const hours = Math.floor((remainingMilliseconds % 86400000) / 3600000);
       const minutes = Math.floor((remainingMilliseconds % 3600000) / 60000);
       const seconds = Math.floor((remainingMilliseconds % 60000) / 1000);
+
+      fields.years.textContent = years;
+      fields.months.textContent = months;
+      fields.days.textContent = days;
+      fields.hours.textContent = String(hours).padStart(2, '0');
+      fields.minutes.textContent = String(minutes).padStart(2, '0');
+      fields.seconds.textContent = String(seconds).padStart(2, '0');
 
       countdown.textContent = `Det er ${years} år, ${months} måneder, ${days} dager, ${hours} timer, ${minutes} minutter og ${seconds} sekunder igjen til du er pensjonist, Karl.`;
     }
