@@ -17,6 +17,10 @@
 
     * { box-sizing: border-box; }
 
+    /* .grid and #clock both set their own `display`, which otherwise beats
+       the browser's default [hidden] rule and leaves them visible anyway. */
+    [hidden] { display: none !important; }
+
     body {
       margin: 0;
       min-height: 100vh;
@@ -24,7 +28,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 2.5rem;
+      gap: 2rem;
       padding: 3rem 1.5rem;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       text-align: center;
@@ -49,8 +53,32 @@
       font-weight: 600;
     }
 
-    header h1 span { color: var(--accent); }
+    /* Settings toggle */
+    #settings-toggle {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 50%;
+      border: 1px solid var(--card-border);
+      background: var(--card);
+      color: var(--text);
+      font-size: 1.2rem;
+      line-height: 1;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+    }
 
+    #settings-toggle:hover { border-color: var(--accent); }
+
+    #setup-hint {
+      max-width: 32ch;
+      color: var(--muted);
+      font-size: 1rem;
+    }
+
+    /* Card skin */
     .grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(88px, 140px));
@@ -84,6 +112,112 @@
       color: var(--muted);
     }
 
+    /* Clock skin */
+    #clock {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    #clock-face {
+      position: relative;
+      width: min(92vw, 460px);
+      height: min(92vw, 460px);
+    }
+
+    #clock-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* view-box + 50% keeps the rotation centre at the clock's middle. A raw
+       `160px` origin would be read as CSS pixels, not viewBox units, and the
+       scaled SVG would swing the hands around an off-centre point. */
+    #clock-svg .hand {
+      transform-box: view-box;
+      transform-origin: 50% 50%;
+    }
+
+    /* Each hand is a short marker sitting in its own band, showing exactly
+       where that ring currently stands. */
+    #clock-svg .hand line {
+      stroke: #e0f2fe;
+      stroke-width: 5;
+      stroke-linecap: round;
+    }
+
+    #clock-svg #hand-years line { stroke-width: 6; }
+
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* Sec/min/hour/day rings have a fixed real-world period, so they spin
+       continuously via pure CSS - one full turn per second/minute/hour/day. */
+    #hand-seconds { animation: spin 1s linear infinite; }
+    #hand-minutes { animation: spin 60s linear infinite; }
+    #hand-hours   { animation: spin 3600s linear infinite; }
+    #hand-days    { animation: spin 86400s linear infinite; }
+    /* Month (variable length) and year (career span) rings get their
+       animation set from JS, since their period isn't a fixed constant. */
+
+    /* Ring shading: shows how much of each cycle has passed. A conic-gradient
+       sweeps from the 12 o'clock reset point, deepest right at the reset point
+       and fading out toward the current hand position - i.e. the further
+       behind the hand you look, the deeper the shading. Resets instantly each
+       cycle, except the year ring, which only ever fills once (never resets
+       before pensjonsalder). --progress (0-100) is written directly from JS
+       every animation frame - simpler and more broadly supported than trying
+       to animate it purely through CSS. */
+    /* Two layers: the conic-gradient shows elapsed time (deep at the 12
+       o'clock reset point, lighter but still visible at the hand, then a
+       hard cut to nothing), painted over a faint full-circle track so the
+       remaining part of the cycle stays readable as "not yet passed". */
+    .ring-band {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background:
+        conic-gradient(from 0deg,
+          var(--ring-deep) 0%,
+          var(--ring-fresh) calc(var(--progress, 0) * 1%),
+          transparent calc(var(--progress, 0) * 1%)),
+        rgba(255, 255, 255, 0.055);
+    }
+
+    #ring-seconds { width: 21.9%; height: 21.9%; --ring-deep: rgba(56, 189, 248, 0.42); --ring-fresh: rgba(56, 189, 248, 0.07); }
+    #ring-minutes { width: 36.9%; height: 36.9%; --ring-deep: rgba(56, 189, 248, 0.46); --ring-fresh: rgba(56, 189, 248, 0.08); }
+    #ring-hours   { width: 51.9%; height: 51.9%; --ring-deep: rgba(56, 189, 248, 0.5);  --ring-fresh: rgba(56, 189, 248, 0.09); }
+    #ring-days    { width: 66.9%; height: 66.9%; --ring-deep: rgba(56, 189, 248, 0.55); --ring-fresh: rgba(56, 189, 248, 0.1); }
+    #ring-months  { width: 81.9%; height: 81.9%; --ring-deep: rgba(56, 189, 248, 0.6);  --ring-fresh: rgba(56, 189, 248, 0.11); }
+    #ring-years   { width: 96.9%; height: 96.9%; --ring-deep: rgba(125, 211, 252, 0.72); --ring-fresh: rgba(125, 211, 252, 0.13); }
+
+    /* Punch each band's centre out so the rings sit side by side. White (not
+       black) for the visible stop: some engines mask by luminance rather than
+       alpha, and black reads as "hidden" either way. */
+    /* `closest-side` is load-bearing: without it the gradient sizes to
+       farthest-corner (the half-diagonal), so every percentage lands ~1.41x
+       further out and the hole swallows the whole ring. */
+    #ring-seconds { mask-image: radial-gradient(circle closest-side, transparent 42.9%, #fff 44.9%); -webkit-mask-image: radial-gradient(circle closest-side, transparent 42.9%, #fff 44.9%); }
+    #ring-minutes { mask-image: radial-gradient(circle closest-side, transparent 66.1%, #fff 68.1%); -webkit-mask-image: radial-gradient(circle closest-side, transparent 66.1%, #fff 68.1%); }
+    #ring-hours   { mask-image: radial-gradient(circle closest-side, transparent 75.9%, #fff 77.9%); -webkit-mask-image: radial-gradient(circle closest-side, transparent 75.9%, #fff 77.9%); }
+    #ring-days    { mask-image: radial-gradient(circle closest-side, transparent 81.3%, #fff 83.3%); -webkit-mask-image: radial-gradient(circle closest-side, transparent 81.3%, #fff 83.3%); }
+    #ring-months  { mask-image: radial-gradient(circle closest-side, transparent 84.7%, #fff 86.7%); -webkit-mask-image: radial-gradient(circle closest-side, transparent 84.7%, #fff 86.7%); }
+    #ring-years   { mask-image: radial-gradient(circle closest-side, transparent 87.1%, #fff 89.1%); -webkit-mask-image: radial-gradient(circle closest-side, transparent 87.1%, #fff 89.1%); }
+
+    #clock-caption {
+      font-size: 0.7rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
     #done {
       font-size: clamp(1.4rem, 5vw, 2.4rem);
       font-weight: 700;
@@ -98,15 +232,112 @@
       white-space: nowrap;
       border: 0;
     }
+
+    /* Settings dialog */
+    #settings-panel {
+      color: var(--text);
+      background: #111827;
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      width: min(90vw, 360px);
+    }
+
+    #settings-panel::backdrop {
+      background: rgba(0, 0, 0, 0.6);
+    }
+
+    #settings-panel h2 {
+      margin: 0 0 1rem;
+      font-size: 1.1rem;
+    }
+
+    #settings-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      text-align: left;
+    }
+
+    #settings-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    #settings-form input[type="text"],
+    #settings-form input[type="date"],
+    #settings-form input[type="number"] {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      color: var(--text);
+      font-size: 1rem;
+    }
+
+    #settings-form fieldset {
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      display: flex;
+      gap: 1rem;
+      padding: 0.6rem 0.75rem;
+    }
+
+    #settings-form fieldset legend {
+      font-size: 0.85rem;
+      color: var(--muted);
+      padding: 0 0.3rem;
+    }
+
+    #settings-form fieldset label {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text);
+    }
+
+    .settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 0.25rem;
+    }
+
+    .settings-actions button {
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+
+    #settings-cancel {
+      background: transparent;
+      color: var(--text);
+    }
+
+    #settings-form button[type="submit"] {
+      background: var(--accent);
+      color: #04202f;
+      font-weight: 600;
+      border-color: var(--accent);
+    }
   </style>
 </head>
 <body>
+  <button id="settings-toggle" aria-label="Innstillinger" title="Innstillinger">⚙</button>
+
   <header>
     <p>Nedtelling til pensjon</p>
-    <h1><span>Karl</span> blir pensjonist</h1>
+    <h1 id="heading">Pensjonsnedtelling</h1>
   </header>
 
-  <div class="grid" id="grid">
+  <p id="setup-hint" hidden>Fyll inn navn, fødselsdato, startdato for arbeidsliv og pensjonsalder i innstillinger for å starte nedtellingen.</p>
+
+  <div class="grid" id="grid" hidden>
     <div class="unit"><div class="value" id="years">–</div><div class="label">År</div></div>
     <div class="unit"><div class="value" id="months">–</div><div class="label">Måneder</div></div>
     <div class="unit"><div class="value" id="days">–</div><div class="label">Dager</div></div>
@@ -115,15 +346,85 @@
     <div class="unit"><div class="value" id="seconds">–</div><div class="label">Sekunder</div></div>
   </div>
 
-  <p id="done" hidden>Gratulerer, du er pensjonist!</p>
+  <div id="clock" hidden>
+    <div id="clock-face">
+      <div class="ring-band" id="ring-seconds"></div>
+      <div class="ring-band" id="ring-minutes"></div>
+      <div class="ring-band" id="ring-hours"></div>
+      <div class="ring-band" id="ring-days"></div>
+      <div class="ring-band" id="ring-months"></div>
+      <div class="ring-band" id="ring-years"></div>
+      <svg id="clock-svg" viewBox="0 0 320 320" role="img" aria-hidden="true">
+      <g class="hand" id="hand-seconds"><line x1="160" y1="145" x2="160" y2="125"></line></g>
+      <g class="hand" id="hand-minutes"><line x1="160" y1="121" x2="160" y2="101"></line></g>
+      <g class="hand" id="hand-hours"><line x1="160" y1="97" x2="160" y2="77"></line></g>
+      <g class="hand" id="hand-days"><line x1="160" y1="73" x2="160" y2="53"></line></g>
+      <g class="hand" id="hand-months"><line x1="160" y1="49" x2="160" y2="29"></line></g>
+      <g class="hand" id="hand-years"><line x1="160" y1="25" x2="160" y2="5"></line></g>
+
+      <circle cx="160" cy="160" r="3" fill="var(--muted)"></circle>
+      </svg>
+    </div>
+    <p id="clock-caption">År · Måned · Dag · Time · Minutt · Sekund (innerst)</p>
+  </div>
+
+  <p id="done" hidden></p>
   <p class="sr-only" id="countdown" aria-live="polite"></p>
 
+  <dialog id="settings-panel">
+    <h2>Innstillinger</h2>
+    <form id="settings-form">
+      <label>
+        Navn
+        <input type="text" id="name" required maxlength="60" autocomplete="name">
+      </label>
+      <label>
+        Fødselsdato
+        <input type="date" id="birthDate" required>
+      </label>
+      <label>
+        Startdato arbeidsliv
+        <input type="date" id="workStartDate" required>
+      </label>
+      <label>
+        Pensjonsalder
+        <input type="number" id="retirementAge" min="1" max="120" required>
+      </label>
+      <fieldset>
+        <legend>Visning</legend>
+        <label><input type="radio" id="skin-cards" name="skin" value="cards"> Kort</label>
+        <label><input type="radio" id="skin-clock" name="skin" value="clock"> Klokke</label>
+      </fieldset>
+      <div class="settings-actions">
+        <button type="button" id="settings-cancel">Avbryt</button>
+        <button type="submit">Lagre</button>
+      </div>
+    </form>
+  </dialog>
+
   <script>
-    const retirementDate = new Date(2037, 6, 17, 0, 0, 0);
+    const CONFIG_KEY = 'pensjon-countdown-config';
+    const DEFAULT_SKIN = 'cards';
+
+    const settingsToggle = document.getElementById('settings-toggle');
+    const settingsPanel = document.getElementById('settings-panel');
+    const settingsForm = document.getElementById('settings-form');
+    const settingsCancel = document.getElementById('settings-cancel');
+    const nameInput = document.getElementById('name');
+    const birthDateInput = document.getElementById('birthDate');
+    const workStartDateInput = document.getElementById('workStartDate');
+    const retirementAgeInput = document.getElementById('retirementAge');
+    const skinCardsRadio = document.getElementById('skin-cards');
+    const skinClockRadio = document.getElementById('skin-clock');
+
+    const heading = document.getElementById('heading');
+    const setupHint = document.getElementById('setup-hint');
     const grid = document.getElementById('grid');
+    const clockEl = document.getElementById('clock');
     const done = document.getElementById('done');
     const countdown = document.getElementById('countdown');
-    const fields = {
+
+    const cardFields = {
       years: document.getElementById('years'),
       months: document.getElementById('months'),
       days: document.getElementById('days'),
@@ -131,15 +432,174 @@
       minutes: document.getElementById('minutes'),
       seconds: document.getElementById('seconds'),
     };
-    let timer;
 
-    function updateCountdown() {
+    const hands = {
+      seconds: document.getElementById('hand-seconds'),
+      minutes: document.getElementById('hand-minutes'),
+      hours: document.getElementById('hand-hours'),
+      days: document.getElementById('hand-days'),
+      months: document.getElementById('hand-months'),
+      years: document.getElementById('hand-years'),
+    };
+
+    const rings = {
+      seconds: document.getElementById('ring-seconds'),
+      minutes: document.getElementById('ring-minutes'),
+      hours: document.getElementById('ring-hours'),
+      days: document.getElementById('ring-days'),
+      months: document.getElementById('ring-months'),
+      years: document.getElementById('ring-years'),
+    };
+
+    let timer;
+    let config = loadConfig();
+
+    function loadConfig() {
+      try {
+        const raw = localStorage.getItem(CONFIG_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed.name || !parsed.birthDate || !parsed.workStartDate || !parsed.retirementAge) return null;
+        return parsed;
+      } catch {
+        return null;
+      }
+    }
+
+    function saveConfig(next) {
+      try {
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(next));
+      } catch {
+        // localStorage utilgjengelig (f.eks. privat modus) - fortsetter uten persistens
+      }
+    }
+
+    function computeRetirementDate(cfg) {
+      const date = new Date(cfg.birthDate);
+      date.setFullYear(date.getFullYear() + Number(cfg.retirementAge));
+      return date;
+    }
+
+    function openSettings() {
+      if (config) {
+        nameInput.value = config.name;
+        birthDateInput.value = config.birthDate;
+        workStartDateInput.value = config.workStartDate;
+        retirementAgeInput.value = config.retirementAge;
+        skinClockRadio.checked = config.skin === 'clock';
+        skinCardsRadio.checked = config.skin !== 'clock';
+      } else {
+        settingsForm.reset();
+        skinCardsRadio.checked = true;
+      }
+      settingsPanel.showModal();
+    }
+
+    settingsToggle.addEventListener('click', openSettings);
+    settingsCancel.addEventListener('click', () => settingsPanel.close());
+
+    settingsForm.addEventListener('submit', (event) => {
+      event.preventDefault();
+      config = {
+        name: nameInput.value.trim(),
+        birthDate: birthDateInput.value,
+        workStartDate: workStartDateInput.value,
+        retirementAge: Number(retirementAgeInput.value),
+        skin: skinClockRadio.checked ? 'clock' : 'cards',
+      };
+      saveConfig(config);
+      settingsPanel.close();
+      start();
+    });
+
+    function updateCards(years, months, days, hours, minutes, seconds) {
+      cardFields.years.textContent = years;
+      cardFields.months.textContent = months;
+      cardFields.days.textContent = days;
+      cardFields.hours.textContent = String(hours).padStart(2, '0');
+      cardFields.minutes.textContent = String(minutes).padStart(2, '0');
+      cardFields.seconds.textContent = String(seconds).padStart(2, '0');
+    }
+
+    let ringFrame;
+
+    // Skygge-ringenes fyllgrad (--progress, 0-100) skrives direkte fra JS
+    // hver animasjonsramme - mer robust enn å la CSS alene animere en custom
+    // property, og lar oss holde alle seks ringer i ett sted i stedet for å
+    // stykke opp logikken (der det tidligere - lett - glapp for én av dem).
+    function tickRingProgress(anchors) {
+      const now = Date.now();
+      const elapsed = Math.max((now - anchors.workStartMs) / 1000, 0);
+
+      rings.seconds.style.setProperty('--progress', (elapsed % 1) * 100);
+      rings.minutes.style.setProperty('--progress', ((elapsed % 60) / 60) * 100);
+      rings.hours.style.setProperty('--progress', ((elapsed % 3600) / 3600) * 100);
+      rings.days.style.setProperty('--progress', ((elapsed % 86400) / 86400) * 100);
+
+      const monthElapsed = Math.max((now - anchors.monthCursorMs) / 1000, 0);
+      rings.months.style.setProperty('--progress', Math.min(monthElapsed / anchors.monthPeriod, 1) * 100);
+
+      const yearElapsed = Math.min(elapsed, anchors.totalCareerSeconds);
+      rings.years.style.setProperty('--progress', (yearElapsed / anchors.totalCareerSeconds) * 100);
+
+      ringFrame = requestAnimationFrame(() => tickRingProgress(anchors));
+    }
+
+    // Alle ringer (visere og skygger) forankres til workStart (startdato
+    // arbeidsliv) - dagen du startet i jobb er det felles "12:00"-nullpunktet
+    // alle teller fra. Sekund/minutt/time/dag har en fast varighet og
+    // viserne spinner videre av seg selv via CSS - vi setter kun riktig
+    // startfase (delay) én gang her, ikke hvert sekund. Måned har variabel
+    // lengde og år resettes aldri (spenner hele karrieren).
+    function syncClockRings(retirementDate, workStart) {
+      const now = new Date();
+      const totalElapsedSeconds = Math.max((now - workStart) / 1000, 0);
+
+      hands.seconds.style.animationDelay = `-${totalElapsedSeconds % 1}s`;
+      hands.minutes.style.animationDelay = `-${totalElapsedSeconds % 60}s`;
+      hands.hours.style.animationDelay = `-${totalElapsedSeconds % 3600}s`;
+      hands.days.style.animationDelay = `-${totalElapsedSeconds % 86400}s`;
+
+      // "Ansettelsesmåned": cascader frem fra workStart til nyeste måneds-
+      // jubileum som ikke er passert "nå" - samme teknikk som i render(),
+      // bare fremover fra start i stedet for bakover fra pensjonsdato.
+      let cursor = new Date(workStart);
+      while (true) {
+        const nextMonth = new Date(cursor);
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+        if (nextMonth > now) break;
+        cursor = nextMonth;
+      }
+      const nextMonthBoundary = new Date(cursor);
+      nextMonthBoundary.setMonth(nextMonthBoundary.getMonth() + 1);
+      const monthPeriod = (nextMonthBoundary - cursor) / 1000;
+      const elapsedIntoMonth = (now - cursor) / 1000;
+      hands.months.style.animation = `spin ${monthPeriod}s linear infinite`;
+      hands.months.style.animationDelay = `-${elapsedIntoMonth}s`;
+
+      const totalCareerSeconds = Math.max((retirementDate - workStart) / 1000, 1);
+      const elapsedCareerSeconds = Math.min(totalElapsedSeconds, totalCareerSeconds);
+      hands.years.style.animation = `spin ${totalCareerSeconds}s linear 1 forwards`;
+      hands.years.style.animationDelay = `-${elapsedCareerSeconds}s`;
+
+      cancelAnimationFrame(ringFrame);
+      tickRingProgress({
+        workStartMs: workStart.getTime(),
+        monthCursorMs: cursor.getTime(),
+        monthPeriod,
+        totalCareerSeconds,
+      });
+    }
+
+    function render(retirementDate, workStart) {
       const now = new Date();
 
       if (now >= retirementDate) {
         grid.hidden = true;
+        clockEl.hidden = true;
         done.hidden = false;
-        countdown.textContent = 'Gratulerer, du er pensjonist!';
+        done.textContent = `Gratulerer, du er pensjonist, ${config.name}!`;
+        countdown.textContent = done.textContent;
         clearInterval(timer);
         return;
       }
@@ -169,18 +629,45 @@
       const minutes = Math.floor((remainingMilliseconds % 3600000) / 60000);
       const seconds = Math.floor((remainingMilliseconds % 60000) / 1000);
 
-      fields.years.textContent = years;
-      fields.months.textContent = months;
-      fields.days.textContent = days;
-      fields.hours.textContent = String(hours).padStart(2, '0');
-      fields.minutes.textContent = String(minutes).padStart(2, '0');
-      fields.seconds.textContent = String(seconds).padStart(2, '0');
+      done.hidden = true;
 
-      countdown.textContent = `Det er ${years} år, ${months} måneder, ${days} dager, ${hours} timer, ${minutes} minutter og ${seconds} sekunder igjen til du er pensjonist, Karl.`;
+      if (config.skin === 'clock') {
+        grid.hidden = true;
+        clockEl.hidden = false;
+      } else {
+        clockEl.hidden = true;
+        grid.hidden = false;
+        updateCards(years, months, days, hours, minutes, seconds);
+      }
+
+      countdown.textContent = `Det er ${years} år, ${months} måneder, ${days} dager, ${hours} timer, ${minutes} minutter og ${seconds} sekunder igjen til du er pensjonist, ${config.name}.`;
     }
 
-    updateCountdown();
-    timer = setInterval(updateCountdown, 1000);
+    function start() {
+      clearInterval(timer);
+
+      if (!config) {
+        heading.textContent = 'Pensjonsnedtelling';
+        setupHint.hidden = false;
+        grid.hidden = true;
+        clockEl.hidden = true;
+        done.hidden = true;
+        countdown.textContent = '';
+        openSettings();
+        return;
+      }
+
+      heading.textContent = `${config.name} blir pensjonist`;
+      setupHint.hidden = true;
+      const retirementDate = computeRetirementDate(config);
+      const workStart = new Date(config.workStartDate);
+      syncClockRings(retirementDate, workStart);
+
+      render(retirementDate, workStart);
+      timer = setInterval(() => render(retirementDate, workStart), 1000);
+    }
+
+    start();
   </script>
 </body>
 </html>
